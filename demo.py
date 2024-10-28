@@ -15,6 +15,7 @@ from sklearn.metrics import classification_report, confusion_matrix
 from time import time
 import pickle
 
+nltk.download('stopwords')
 SW = stopwords.words("english")
 PUNCT = list(punctuation)
 D = 6
@@ -156,4 +157,3 @@ if st.button("Analyze"):
         st.write(output)
     else:
         st.write("Please enter a sentence.")
-
