@@ -3,3 +3,8 @@ nltk
 pandas
 numpy
 scikit-learn
+matplotlib
+seaborn
+collections
+time
+pickle
