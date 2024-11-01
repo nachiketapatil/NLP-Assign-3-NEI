@@ -4,11 +4,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import math, string, re
-import streamlit as st
-from sklearn.svm import SVC
+
+from sklearn.svm import LinearSVC, SVC
 from string import punctuation
+from datasets import load_dataset
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
+from nltk import pos_tag
 from sklearn.preprocessing import StandardScaler
 from collections import defaultdict
 from sklearn.metrics import classification_report, confusion_matrix
@@ -18,42 +20,63 @@ import pickle
 nltk.download('stopwords')
 SW = stopwords.words("english")
 PUNCT = list(punctuation)
-D = 6
+D = 7
+
+# POS tag encoding as per the ConLL2003 dataset
+pos_tag_mapping = {'"' : 0, '''''' : 1, '#' : 2, '$' : 3, '(' : 4, ')' : 5, ',' : 6, '.' : 7, ':' : 8, '``' : 9, 'CC' : 10, 'CD' : 11, 'DT' : 12,
+                   'EX' : 13, 'FW' : 14, 'IN' : 15, 'JJ' : 16, 'JJR' : 17, 'JJS' : 18, 'LS' : 19, 'MD' : 20, 'NN' : 21, 'NNP' : 22, 'NNPS' : 23,
+                   'NNS' : 24, 'NN|SYM' : 25, 'PDT' : 26, 'POS' : 27, 'PRP' : 28, 'PRP$' : 29, 'RB' : 30, 'RBR' : 31, 'RBS' : 32, 'RP' : 33,
+                   'SYM' : 34, 'TO' : 35, 'UH' : 36, 'VB' : 37, 'VBD' : 38, 'VBG' : 39, 'VBN' : 40, 'VBP' : 41, 'VBZ' : 42, 'WDT' : 43,
+                   'WP' : 44, 'WP$' : 45, 'WRB' : 46}
+
+# Function to get the POS tag of the given word as per the ConLL2003 Dataset
+def get_pos_tag(word):
+    # Tokenize the word
+    tokens = word_tokenize(word)
+
+    # Get the POS tag
+    pos_tags = pos_tag(tokens)
+
+    # Return the POS tag of the first token
+    return pos_tags[0][1] if pos_tags else None
 
 #Given a word, the function extracts the necessary features.
-def getWordVectors(w, pos):
+def getWordVectors(w, pos_tag, position):
     res = [0 for _ in range(D)]
-    
+
     # If the word starts with a caps letter
     if w[0].isupper():
         res[0] = 1
     else:
         res[0] = 0
-    
+
     # If the word is completely caps
     if w.isupper():
         res[1] = 1
     else:
         res[1] = 0
-    
+
     # Length of the word
     res[2] = len(w)
-    
+
     # If the word is a stop word
     if w.lower() in SW:
         res[3] = 1
     else:
         res[3] = 0
-    
+
     # If the word is a punctuation
     if w in PUNCT:
         res[4] = 1
     else:
         res[4] = 0
 
+    # The POS tag of the word
+    res[5] = pos_tag
+
     # The relative position of the word in the sentence
-    res[5] = pos
-    
+    res[6] = position
+
     #Converting to a float array
     res = np.asarray(res, dtype = np.float32)
     return res
@@ -70,7 +93,7 @@ def getVectors(s):
 
         for i in range(l):
             words.append(sen[i]) # Appending the word to the words array
-            vecs = getWordVectors(sen[i], float(i/l)) # Getting the features of the word
+            vecs = getWordVectors(sen[i], d["pos_tags"][i], float(i/l)) # Getting the features of the word
             vectors.append(vecs) # Appending the word features to the vectors array
 
             # Getting the NEI tags and appending it to the nei_tags array
@@ -84,14 +107,17 @@ def getVectors(s):
 
 # This function deals with the period in the sentence
 def removePeriod(word):
+    # Exception words are the list of words for which we don't want to remove the period from the root word
     exception_words = ["mr.", "mrs.", "ms.", "dr."]
     if word.lower() in exception_words:
         return word
+
+    # Otherwise, separate the word and the punctuation
     res = ""
     for i in range(len(word)):
         if (word[i] != '.'):
             res += word[i]
-    return res
+    return res    
 
 # Perform tokenization and pre-processing
 def preprocess_sent(sent):
@@ -148,10 +174,21 @@ sentence = st.text_input("Enter the sentence:")
 if st.button("Analyze"):
     if sentence:
         words = preprocess_sent(sentence)
-        f = [getWordVectors(words[i], float(i / len(words))) for i in range(len(words))]
+        l = len(words)
+        f = []
+        
+        for i in range(l):
+            pos = pos_tag_mapping[get_pos_tag(words[i])]  # Get the POS tag encoding
+            f.append(getWordVectors(words[i], pos, float(i / l)))  # Get the word vector
+        
         f_scaled = scaler.transform(f)
         nei_tags = svm_model.predict(f_scaled)
 
+        # Modify NEI tags based on conditions
+        for i in range(len(words)):
+            if (i >= 1 and words[i] == 'of' and nei_tags[i - 1] == 1):
+                nei_tags[i] = 1
+        
         output = " ".join(f"{words[i]}_{int(nei_tags[i])}" for i in range(len(words)))
         st.write("Output:")
         st.write(output)
