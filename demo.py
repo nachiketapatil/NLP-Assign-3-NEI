@@ -18,6 +18,7 @@ from time import time
 import pickle
 
 nltk.download('stopwords')
+nltk.download('punkt_tab')
 SW = stopwords.words("english")
 PUNCT = list(punctuation)
 D = 7
