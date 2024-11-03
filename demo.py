@@ -19,6 +19,8 @@ import pickle
 
 nltk.download('stopwords')
 nltk.download('punkt_tab')
+nltk.download('averaged_perceptron_tagger_eng')
+
 SW = stopwords.words("english")
 PUNCT = list(punctuation)
 D = 7
